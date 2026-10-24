@@ -31,7 +31,7 @@
 
 /* USER CODE BEGIN PV */
 /* Private variables ---------------------------------------------------------*/
-
+extern volatile uint32_t datain_count;
 /* USER CODE END PV */
 
 /** @addtogroup STM32_USB_OTG_DEVICE_LIBRARY
@@ -762,7 +762,7 @@ __ALIGN_BEGIN static uint8_t CUSTOM_HID_ReportDesc_FS[USBD_CUSTOM_HID_REPORT_DES
 extern USBD_HandleTypeDef hUsbDeviceFS;
 
 /* USER CODE BEGIN EXPORTED_VARIABLES */
-
+//static uint8_t *CUSTOM_HID_GetReport_FS(uint16_t *ReportLength);
 /* USER CODE END EXPORTED_VARIABLES */
 /**
   * @}
@@ -776,7 +776,7 @@ extern USBD_HandleTypeDef hUsbDeviceFS;
 static int8_t CUSTOM_HID_Init_FS(void);
 static int8_t CUSTOM_HID_DeInit_FS(void);
 static int8_t CUSTOM_HID_OutEvent_FS(uint8_t event_idx, uint8_t state);
-static uint8_t *CUSTOM_HID_GetReport_FS(uint16_t *ReportLength);
+
 
 /**
   * @}
@@ -788,7 +788,6 @@ USBD_CUSTOM_HID_ItfTypeDef USBD_CustomHID_fops_FS =
   CUSTOM_HID_Init_FS,
   CUSTOM_HID_DeInit_FS,
   CUSTOM_HID_OutEvent_FS,
-  CUSTOM_HID_GetReport_FS
 };
 
 /** @defgroup USBD_CUSTOM_HID_Private_Functions USBD_CUSTOM_HID_Private_Functions
@@ -832,6 +831,15 @@ static int8_t CUSTOM_HID_OutEvent_FS(uint8_t event_idx, uint8_t state)
   UNUSED(state);
   UNUSED(event_idx);
 
+  datain_count++;
+
+  USBD_CUSTOM_HID_HandleTypeDef *hhid = (USBD_CUSTOM_HID_HandleTypeDef *)hUsbDeviceFS.pClassData;
+
+  if(hhid != NULL) {
+
+	  uint8_t buff_id = *(hhid -> Report_buf);
+	  int16_t force = (int16_t)(*((hhid -> Report_buf)+1) | (*((hhid -> Report_buf) + 2) << 8));
+  }
   /* Start next USB packet transfer once data processing is completed */
   if (USBD_CUSTOM_HID_ReceivePacket(&hUsbDeviceFS) != (uint8_t)USBD_OK)
   {
@@ -844,28 +852,22 @@ static int8_t CUSTOM_HID_OutEvent_FS(uint8_t event_idx, uint8_t state)
 
 /* USER CODE BEGIN 7 */
 
-extern uint8_t g_get_report_id;
-
-static uint8_t pid_pool_report[5];
-
-static uint8_t *CUSTOM_HID_GetReport_FS(uint16_t *ReportLength)
-{
-  switch (g_get_report_id)
-  {
-    case 0x15:                              /* PID Pool Report */
-      pid_pool_report[0] = 0x15;            /* report ID */
-      pid_pool_report[1] = 0xFF;            /* RAM pool size, low */
-      pid_pool_report[2] = 0xFF;            /* RAM pool size, high */
-      pid_pool_report[3] = 40;              /* simultaneous effects max */
-      pid_pool_report[4] = 0x03;            /* device managed pool | shared param blocks */
-      *ReportLength = sizeof(pid_pool_report);
-      return pid_pool_report;
-
-    default:
-      *ReportLength = 0;
-      return NULL;                          /* STALL for reports you don't handle yet */
-  }
-}
+//extern uint8_t g_get_report_id;
+//
+//static uint8_t hid_report_buffer[64];
+//
+//static uint8_t *CUSTOM_HID_GetReport_FS(uint16_t *ReportLength)
+//{
+//	// Populate your buffer with whatever data you want to send back to the PC
+//	hid_report_buffer[0] = 0x00; // Report ID (if using one)
+//	hid_report_buffer[1] = 0x55; // Dummy test data or real button/axis states
+//
+//	// Tell the USB stack how many bytes to send back
+//	*report_len = sizeof(hid_report_buffer);
+//
+//	// Return the pointer to your buffer
+//	return hid_report_buffer;
+//}
 
 /**
   * @brief  Send the report to the Host

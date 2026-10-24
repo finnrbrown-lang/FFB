@@ -420,7 +420,7 @@ static uint8_t USBD_CUSTOM_HID_Setup(USBD_HandleTypeDef *pdev,
           }
 #endif /* USBD_CUSTOMHID_CTRL_REQ_COMPLETE_CALLBACK_ENABLED */
 #ifndef USBD_CUSTOMHID_EP0_OUT_PREPARE_RECEIVE_DISABLED
-
+          datain_count++;
           if (req->wLength > USBD_CUSTOMHID_OUTREPORT_BUF_SIZE)
           {
             /* Stall EP0 */
@@ -435,8 +435,7 @@ static uint8_t USBD_CUSTOM_HID_Setup(USBD_HandleTypeDef *pdev,
           break;
 #ifdef USBD_CUSTOMHID_CTRL_REQ_GET_REPORT_ENABLED
         case CUSTOM_HID_REQ_GET_REPORT:
-        	datain_count++;
-        	g_get_report_id = LOBYTE(req->wValue);
+//        	g_get_report_id = LOBYTE(req->wValue);
           if (((USBD_CUSTOM_HID_ItfTypeDef *)pdev->pUserData[pdev->classId])->GetReport != NULL)
           {
             ReportLength = req->wLength;
