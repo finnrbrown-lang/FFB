@@ -48,6 +48,8 @@ TIM_HandleTypeDef htim4;
 TIM_HandleTypeDef htim5;
 
 /* USER CODE BEGIN PV */
+extern USBD_HandleTypeDef hUsbDeviceFS;
+
 volatile uint8_t FFB_report[64] = {0};   /* filled by USB HID OUT/EP0 callbacks */
 volatile uint8_t FFB_updated    = 0U;   /* set to 1 each time a new FFB report arrives */
 
@@ -68,7 +70,10 @@ int duty;
 int L_EN;
 int R_EN;
 int16_t offset;
+
+
 volatile uint32_t dataout_count = 0;
+uint32_t datain_count = 0;
 
 volatile uint8_t actuators_enabled = 0;
 volatile uint8_t effect_active     = 0;  /* set by 0x0A Op Effect Start, cleared by Stop */
@@ -102,6 +107,11 @@ static void MX_TIM5_Init(void);
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
 
+int map_ranges(int value, int origin_max, int origin_min, int mapped_max, int mapped_min){
+int j = value * (mapped_max - mapped_min) / (origin_max - origin_min);
+return j;
+}
+
 /* USER CODE END 0 */
 
 /**
@@ -112,10 +122,7 @@ int main(void)
 {
 
   /* USER CODE BEGIN 1 */
- int map_ranges(int value, int origin_max, int origin_min, int mapped_max, int mapped_min){
-  int j = value * (mapped_max - mapped_min) / (origin_max - origin_min);
-  return j;
- }
+
   /* USER CODE END 1 */
 
   /* MCU Configuration--------------------------------------------------------*/
@@ -224,7 +231,7 @@ int main(void)
 	report1[10] = 0x00;
 	report1[11] = buttons;
 
-	USBD_HID_SendReport(&hUsbDeviceFS, report1, sizeof(report1));
+	USBD_CUSTOM_HID_SendReport(&hUsbDeviceFS, report1, sizeof(report1));
 
 	/* --- Process incoming FFB reports ------------------------------------- */
 	if (FFB_updated)

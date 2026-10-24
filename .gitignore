@@ -1,0 +1,20 @@
+# IDE metadata and history
+.metadata/
+.config/
+RemoteSystemsTempFiles/
+
+# Build outputs
+Debug/
+Release/
+*.elf
+*.bin
+*.hex
+*.map
+*.list
+*.su
+*.o
+*.d
+
+# Absolute protection for deep nested build variants
+**/Debug/
+**/Release/

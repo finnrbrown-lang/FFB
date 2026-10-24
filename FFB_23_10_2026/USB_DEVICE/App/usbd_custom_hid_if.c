@@ -579,7 +579,7 @@ __ALIGN_BEGIN static uint8_t CUSTOM_HID_ReportDesc_FS[USBD_CUSTOM_HID_REPORT_DES
 					0x25, 0x06,           //   Logical Maximum (6)
 					0x75, 0x08,           //   Report Size (8)
 					0x95, 0x01,           //   Report Count (1)
-					0x91, 0x02,           //   Output (Data)
+					0x91, 0x00,           //   Output (Data,Array,Abs)
 					0xC0,                 //End Collection Datalink (Logical) (OK)
 
 					// DeviceGainReport
@@ -716,17 +716,17 @@ __ALIGN_BEGIN static uint8_t CUSTOM_HID_ReportDesc_FS[USBD_CUSTOM_HID_REPORT_DES
 					0xA1, 0x02, // COLLECTION (Logical)
 					0x85, 0x15, // REPORT_ID (21)
 					0x09, 0x80, // USAGE (RAM Pool Size)
-					0x75, 0x10, // REPORT_SIZE (10)
+					0x75, 0x10, // REPORT_SIZE (16)
 					0x95, 0x01, // REPORT_COUNT (01)
 					0x15, 0x00, // LOGICAL_MINIMUM (00)
 					0x35, 0x00, // PHYSICAL_MINIMUM (00)
-					0x27, 0xFF, 0xFF, 0x00, 0x00, // LOGICAL_MAXIMUM (00 00 FF FF)
-					0x47, 0xFF, 0xFF, 0x00, 0x00, // PHYSICAL_MAXIMUM (00 00 FF FF)
+					0x27, 0xFF, 0xFF, 0x00, 0x00, // LOGICAL_MAXIMUM (65535)
+					0x47, 0xFF, 0xFF, 0x00, 0x00, // PHYSICAL_MAXIMUM (65535)
 					0xB1, 0x02, // FEATURE (Data,Var,Abs)
 					0x09, 0x83, // USAGE (Simultaneous Effects Max)
-					0x26, 0xFF, 0x00, // LOGICAL_MAXIMUM (00 FF)
-					0x46, 0xFF, 0x00, // PHYSICAL_MAXIMUM (00 FF)
-					0x75, 0x08, // REPORT_SIZE (08)
+					0x26, 0x28, 0x00, // LOGICAL_MAXIMUM (255)
+					0x46, 0x28, 0x00, // PHYSICAL_MAXIMUM (255)
+					0x75, 0x08, // REPORT_SIZE (8)
 					0x95, 0x01, // REPORT_COUNT (01)
 					0xB1, 0x02, // FEATURE (Data,Var,Abs)
 					0x09, 0xA9, // USAGE (Device Managed Pool)
@@ -738,7 +738,7 @@ __ALIGN_BEGIN static uint8_t CUSTOM_HID_ReportDesc_FS[USBD_CUSTOM_HID_REPORT_DES
 					0x35, 0x00, // PHYSICAL_MINIMUM (00)
 					0x45, 0x01, // PHYSICAL_MAXIMUM (01)
 					0xB1, 0x02, // FEATURE (Data,Var,Abs)
-					0x75, 0x06, // REPORT_SIZE (06)
+					0x75, 0x06, // REPORT_SIZE (00)
 					0x95, 0x01, // REPORT_COUNT (01)
 					0xB1, 0x03, // FEATURE ( Cnst,Var,Abs)
 					0xC0, // END COLLECTION ()
@@ -762,7 +762,28 @@ __ALIGN_BEGIN static uint8_t CUSTOM_HID_ReportDesc_FS[USBD_CUSTOM_HID_REPORT_DES
 extern USBD_HandleTypeDef hUsbDeviceFS;
 
 /* USER CODE BEGIN EXPORTED_VARIABLES */
+extern uint8_t g_get_report_id;
 
+static uint8_t pid_pool_report[5];
+
+uint8_t *CUSTOM_HID_GetReport_FS(uint16_t *ReportLength)
+{
+  switch (g_get_report_id)
+  {
+    case 0x15:                              /* PID Pool Report */
+      pid_pool_report[0] = 0x15;            /* report ID */
+      pid_pool_report[1] = 0xFF;            /* RAM pool size, low */
+      pid_pool_report[2] = 0xFF;            /* RAM pool size, high */
+      pid_pool_report[3] = 40;              /* simultaneous effects max */
+      pid_pool_report[4] = 0x03;            /* device managed pool | shared param blocks */
+      *ReportLength = sizeof(pid_pool_report);
+      return pid_pool_report;
+
+    default:
+      *ReportLength = 0;
+      return NULL;                          /* STALL for reports you don't handle yet */
+  }
+}
 /* USER CODE END EXPORTED_VARIABLES */
 /**
   * @}
@@ -786,7 +807,8 @@ USBD_CUSTOM_HID_ItfTypeDef USBD_CustomHID_fops_FS =
   CUSTOM_HID_ReportDesc_FS,
   CUSTOM_HID_Init_FS,
   CUSTOM_HID_DeInit_FS,
-  CUSTOM_HID_OutEvent_FS
+  CUSTOM_HID_OutEvent_FS,
+  CUSTOM_HID_GetReport_FS
 };
 
 /** @defgroup USBD_CUSTOM_HID_Private_Functions USBD_CUSTOM_HID_Private_Functions
@@ -827,8 +849,8 @@ static int8_t CUSTOM_HID_DeInit_FS(void)
 static int8_t CUSTOM_HID_OutEvent_FS(uint8_t event_idx, uint8_t state)
 {
   /* USER CODE BEGIN 6 */
-  UNUSED(event_idx);
   UNUSED(state);
+  UNUSED(event_idx);
 
   /* Start next USB packet transfer once data processing is completed */
   if (USBD_CUSTOM_HID_ReceivePacket(&hUsbDeviceFS) != (uint8_t)USBD_OK)

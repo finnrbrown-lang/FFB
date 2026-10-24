@@ -105,7 +105,9 @@ void Error_Handler(void);
 #define button_3_GPIO_Port GPIOB
 
 /* USER CODE BEGIN Private defines */
+extern uint32_t datain_count;
 
+extern uint8_t g_get_report_id;
 /* USER CODE END Private defines */
 
 #ifdef __cplusplus
