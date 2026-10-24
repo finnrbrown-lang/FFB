@@ -73,7 +73,7 @@ int16_t offset;
 
 
 volatile uint32_t dataout_count = 0;
-uint32_t datain_count = 0;
+extern volatile uint32_t datain_count;
 
 volatile uint8_t actuators_enabled = 0;
 volatile uint8_t effect_active     = 0;  /* set by 0x0A Op Effect Start, cleared by Stop */
@@ -122,7 +122,7 @@ int main(void)
 {
 
   /* USER CODE BEGIN 1 */
-
+	datain_count = 0;
   /* USER CODE END 1 */
 
   /* MCU Configuration--------------------------------------------------------*/

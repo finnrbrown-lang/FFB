@@ -109,8 +109,8 @@ static uint8_t *USBD_CUSTOM_HID_GetDeviceQualifierDesc(uint16_t *length);
 
 
 
-extern uint32_t datain_count;
 uint8_t g_get_report_id;
+volatile uint32_t datain_count;
 
 
 
@@ -434,10 +434,9 @@ static uint8_t USBD_CUSTOM_HID_Setup(USBD_HandleTypeDef *pdev,
 #endif /* USBD_CUSTOMHID_EP0_OUT_PREPARE_RECEIVE_DISABLED */
           break;
 #ifdef USBD_CUSTOMHID_CTRL_REQ_GET_REPORT_ENABLED
-
-        g_get_report_id = LOBYTE(req->wValue);
-
         case CUSTOM_HID_REQ_GET_REPORT:
+        	datain_count++;
+        	g_get_report_id = LOBYTE(req->wValue);
           if (((USBD_CUSTOM_HID_ItfTypeDef *)pdev->pUserData[pdev->classId])->GetReport != NULL)
           {
             ReportLength = req->wLength;
