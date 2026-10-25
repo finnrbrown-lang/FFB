@@ -49,7 +49,13 @@ extern volatile uint32_t datain_count;
   */
 
 /* USER CODE BEGIN PRIVATE_TYPES */
-
+typedef struct {
+    uint8_t  allocated;
+    uint8_t  type;        /* 1=const 2=ramp 3=square 4=sine 5=tri 6=sawUp 7=sawDown 8=spring 9=damper 10=inertia 11=friction 12=custom */
+    uint8_t  playing;
+    int16_t  magnitude;   /* constant force */
+    /* add duration, gain, direction, condition params as you parse them */
+} FfbEffect;
 /* USER CODE END PRIVATE_TYPES */
 
 /**
@@ -63,6 +69,8 @@ extern volatile uint32_t datain_count;
 
 /* USER CODE BEGIN PRIVATE_DEFINES */
 
+
+
 /* USER CODE END PRIVATE_DEFINES */
 
 /**
@@ -75,6 +83,8 @@ extern volatile uint32_t datain_count;
   */
 
 /* USER CODE BEGIN PRIVATE_MACRO */
+
+#define FFB_MAX_EFFECTS 40
 
 /* USER CODE END PRIVATE_MACRO */
 
@@ -749,6 +759,16 @@ __ALIGN_BEGIN static uint8_t CUSTOM_HID_ReportDesc_FS[USBD_CUSTOM_HID_REPORT_DES
 
 /* USER CODE BEGIN PRIVATE_VARIABLES */
 
+static FfbEffect effects[FFB_MAX_EFFECTS + 1];
+
+volatile uint8_t ffb_gain = 0xFF;
+volatile uint8_t ffb_actuators_enabled = 1;
+volatile uint8_t ffb_paused = 0;
+
+/* read by GetReport case 0x14 */
+volatile uint8_t blockload_index  = 0;
+volatile uint8_t blockload_status = 3;   /* 1 success, 2 full, 3 error */
+
 /* USER CODE END PRIVATE_VARIABLES */
 
 /**
@@ -835,6 +855,7 @@ static int8_t CUSTOM_HID_OutEvent_FS(uint8_t event_idx, uint8_t state)
   datain_count++;
 
   USBD_CUSTOM_HID_HandleTypeDef *hhid = (USBD_CUSTOM_HID_HandleTypeDef *)hUsbDeviceFS.pClassData;
+
 
   if(hhid != NULL) {
 

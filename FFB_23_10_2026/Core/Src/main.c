@@ -51,7 +51,7 @@ TIM_HandleTypeDef htim5;
 extern USBD_HandleTypeDef hUsbDeviceFS;
 
 volatile uint8_t FFB_report[64] = {0};   /* filled by USB HID OUT/EP0 callbacks */
-volatile uint8_t FFB_updated    = 0U;   /* set to 1 each time a new FFB report arrives */
+volatile uint8_t FFB_updated = 0U;   /* 1 if report recieved */
 
 int steeringA = 0;
 int steeringB = 0;
@@ -71,13 +71,21 @@ int L_EN;
 int R_EN;
 int16_t offset;
 
+extern volatile uint8_t ffb_gain = 0xFF;
+extern volatile uint8_t ffb_actuators_enabled = 1;
+extern volatile uint8_t ffb_paused = 0;
 
-volatile uint32_t dataout_count = 0;
+/* read by GetReport case 0x14 */
+extern volatile uint8_t blockload_index  = 0;
+extern volatile uint8_t blockload_status = 3;   /* 1 success, 2 full, 3 error */
+
+
+
 extern volatile uint32_t datain_count;
 
-volatile uint8_t actuators_enabled = 0;
-volatile uint8_t effect_active     = 0;  /* set by 0x0A Op Effect Start, cleared by Stop */
-int32_t ffb_output = 0;  /* current force magnitude (-10000..+10000) */
+//volatile uint8_t actuators_enabled = 0;
+//volatile uint8_t effect_active     = 0;  /* set by 0x0A Op Effect Start, cleared by Stop */
+//int32_t ffb_output = 0;  /* current force magnitude (-10000..+10000) */
 
 /* --- Debug counters: watch these in the STM32CubeIDE debugger ------------- *
  *  ep0_count         — incremented in usbd_hid.c EP0_RxReady (feature/ctrl) *
@@ -88,8 +96,6 @@ int32_t ffb_output = 0;  /* current force magnitude (-10000..+10000) */
  *  effect_active     — 1 after 0x0A Start, 0 after 0x0A Stop                *
  *  ffb_output        — current constant-force magnitude                      *
  * -------------------------------------------------------------------------- */
-volatile uint32_t handler_count = 0;
-volatile uint8_t  last_report_id = 0;
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
