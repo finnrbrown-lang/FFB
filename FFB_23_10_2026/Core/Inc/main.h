@@ -109,8 +109,6 @@ extern volatile uint32_t datain_count;
 
 extern uint8_t g_get_report_id;
 
-#define USBD_CUSTOMHID_REPORT_BUFFER_EVENT_ENABLED 1
-#define USBD_CUSTOMHID_CTRL_REQ_GET_REPORT_ENABLED 1
 /* USER CODE END Private defines */
 
 #ifdef __cplusplus

@@ -228,9 +228,9 @@ __ALIGN_BEGIN static uint8_t CUSTOM_HID_ReportDesc_FS[USBD_CUSTOM_HID_REPORT_DES
 					0x91, 0x02,           //     Output (Data,Var,Abs)
 					0x09, 0x55,           /* Usage (Axes Enable) */
 					0xA1, 0x02,           /* Collection (Logical) */
-					    0x05, 0x0A,       /* USAGE_PAGE (Ordinals) <-- Use Ordinals Page instead of Generic Desktop */
-					    0x09, 0x01,       /* Usage (Instance 1) - This maps to your 1st axis (X) */
-					    0x09, 0x02,       /* Usage (Instance 2) - This maps to your 2nd axis (Y) */
+					    0x05, 0x01,       /* USAGE_PAGE (Generic Desktop) */
+						0x09, 0x30,        /* Usage (X) - Steering */
+						0x09, 0x31,        /* Usage (Y) */
 					    0x15, 0x00,       /* Logical Minimum (0) */
 					    0x25, 0x01,       /* Logical Maximum (1) */
 					    0x75, 0x01,       /* Report Size (1) */
@@ -738,7 +738,7 @@ __ALIGN_BEGIN static uint8_t CUSTOM_HID_ReportDesc_FS[USBD_CUSTOM_HID_REPORT_DES
 					0x35, 0x00, // PHYSICAL_MINIMUM (00)
 					0x45, 0x01, // PHYSICAL_MAXIMUM (01)
 					0xB1, 0x02, // FEATURE (Data,Var,Abs)
-					0x75, 0x06, // REPORT_SIZE (00)
+					0x75, 0x06, // REPORT_SIZE (06)
 					0x95, 0x01, // REPORT_COUNT (01)
 					0xB1, 0x03, // FEATURE ( Cnst,Var,Abs)
 					0xC0, // END COLLECTION ()
@@ -762,7 +762,7 @@ __ALIGN_BEGIN static uint8_t CUSTOM_HID_ReportDesc_FS[USBD_CUSTOM_HID_REPORT_DES
 extern USBD_HandleTypeDef hUsbDeviceFS;
 
 /* USER CODE BEGIN EXPORTED_VARIABLES */
-//static uint8_t *CUSTOM_HID_GetReport_FS(uint16_t *ReportLength);
+static uint8_t *CUSTOM_HID_GetReport_FS(uint16_t *ReportLength);
 /* USER CODE END EXPORTED_VARIABLES */
 /**
   * @}
@@ -788,6 +788,7 @@ USBD_CUSTOM_HID_ItfTypeDef USBD_CustomHID_fops_FS =
   CUSTOM_HID_Init_FS,
   CUSTOM_HID_DeInit_FS,
   CUSTOM_HID_OutEvent_FS,
+  CUSTOM_HID_GetReport_FS
 };
 
 /** @defgroup USBD_CUSTOM_HID_Private_Functions USBD_CUSTOM_HID_Private_Functions
@@ -852,22 +853,32 @@ static int8_t CUSTOM_HID_OutEvent_FS(uint8_t event_idx, uint8_t state)
 
 /* USER CODE BEGIN 7 */
 
-//extern uint8_t g_get_report_id;
-//
-//static uint8_t hid_report_buffer[64];
-//
-//static uint8_t *CUSTOM_HID_GetReport_FS(uint16_t *ReportLength)
-//{
-//	// Populate your buffer with whatever data you want to send back to the PC
-//	hid_report_buffer[0] = 0x00; // Report ID (if using one)
-//	hid_report_buffer[1] = 0x55; // Dummy test data or real button/axis states
-//
-//	// Tell the USB stack how many bytes to send back
-//	*report_len = sizeof(hid_report_buffer);
-//
-//	// Return the pointer to your buffer
-//	return hid_report_buffer;
-//}
+extern uint8_t g_get_report_id;
+extern uint8_t g_get_report_type;
+
+
+static uint8_t hid_report_buffer[64];
+
+static uint8_t *CUSTOM_HID_GetReport_FS(uint16_t *ReportLength)
+{
+	if(g_get_report_type == 3) {
+		switch(g_get_report_id) {
+			case 0x15: // Report ID(21)
+				*(hid_report_buffer) = g_get_report_id;
+				*(hid_report_buffer + 1) = 0xFF;
+				*(hid_report_buffer + 2) = 0xFF;
+				*(hid_report_buffer + 3) = 0x28;
+				*(hid_report_buffer + 4) = 0x03;
+
+				*ReportLength = 5;
+				return hid_report_buffer;
+		}
+	}
+
+	*ReportLength = 0;
+
+	return NULL;
+}
 
 /**
   * @brief  Send the report to the Host
