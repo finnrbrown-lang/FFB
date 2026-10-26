@@ -22,7 +22,7 @@
 #include "usbd_custom_hid_if.h"
 
 /* USER CODE BEGIN INCLUDE */
-
+#include <string.h>
 /* USER CODE END INCLUDE */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -32,6 +32,8 @@
 /* USER CODE BEGIN PV */
 /* Private variables ---------------------------------------------------------*/
 extern volatile uint32_t datain_count;
+extern volatile uint32_t ffb_rx_count[256];
+extern volatile uint8_t  ffb_last_id, ffb_last_val;
 /* USER CODE END PV */
 
 /** @addtogroup STM32_USB_OTG_DEVICE_LIBRARY
@@ -53,7 +55,14 @@ typedef struct {
     uint8_t  allocated;
     uint8_t  type;        /* 1=const 2=ramp 3=square 4=sine 5=tri 6=sawUp 7=sawDown 8=spring 9=damper 10=inertia 11=friction 12=custom */
     uint8_t  playing;
+    uint8_t  gain;        /* 0..255, from Set Effect */
+    uint16_t duration;    /* ms, 0xFFFF = infinite, from Set Effect */
     int16_t  magnitude;   /* constant force */
+    struct {
+        int16_t  cpOffset;
+        int16_t  posCoeff, negCoeff;
+        uint16_t posSat, negSat, deadBand;
+      } cond[2];
     /* add duration, gain, direction, condition params as you parse them */
 } FfbEffect;
 /* USER CODE END PRIVATE_TYPES */
@@ -85,6 +94,8 @@ typedef struct {
 /* USER CODE BEGIN PRIVATE_MACRO */
 
 #define FFB_MAX_EFFECTS 40
+
+#define LE16(p) ((uint16_t)((p)[0] | ((p)[1] << 8)))
 
 /* USER CODE END PRIVATE_MACRO */
 
@@ -859,9 +870,115 @@ static int8_t CUSTOM_HID_OutEvent_FS(uint8_t event_idx, uint8_t state)
 
   if(hhid != NULL) {
 
-	  uint8_t buff_id = *(hhid -> Report_buf);
-	  int16_t force = (int16_t)(*((hhid -> Report_buf)+1) | (*((hhid -> Report_buf) + 2) << 8));
+	  const uint8_t *b = hhid -> Report_buf;
+
+
+	  ffb_rx_count[b[0]]++;
+	  ffb_last_id  = b[0];
+	  ffb_last_val = b[1];
+
+	  switch (*(b)) {
+	  	  case 0x0B: /* PID Block Free */
+
+			if (b[1] >= 1 && b[1] <= FFB_MAX_EFFECTS)
+				memset(&effects[b[1]], 0, sizeof(FfbEffect));
+			break;
+
+
+	  	  case 0x0C: /* PID Device Control */
+
+	  		switch (b[1]) {
+				case 1: ffb_actuators_enabled = 1; break;
+				case 2: ffb_actuators_enabled = 0; break;
+				case 3: for (int i = 1; i <= FFB_MAX_EFFECTS; i++) effects[i].playing = 0; break;
+				case 4: memset(effects, 0, sizeof(effects));
+					  ffb_gain = 0xFF; ffb_paused = 0; break;
+				case 5: ffb_paused = 1; break;
+				case 6: ffb_paused = 0; break;
+			}
+			break;
+
+
+	  	  case 0x0D: /* Device Gain */
+
+			ffb_gain = b[1];
+			break;
+
+
+	  	  case 0x13: /* Create New Effect (feature, arrives via EP0 SET_REPORT) */
+
+	  	  {
+	  		uint8_t type = b[1];                     /* 1..12 */
+			blockload_index  = 0;
+			blockload_status = 3;                    /* error unless a slot is found */
+			if (type >= 1 && type <= 12) {
+			  blockload_status = 2;                  /* full unless one found */
+			  for (int i = 1; i <= FFB_MAX_EFFECTS; i++) {
+				if (!effects[i].allocated) {
+				  effects[i].allocated = 1;
+				  effects[i].type = type;
+				  blockload_index  = i;
+				  blockload_status = 1;              /* success */
+				  break;
+				}
+			  }
+			}
+			break;
+	  	  }
+
+
+	  	  case 0x10: /* Set Effect: 18 bytes */
+		  {   /* Set Effect */
+			  uint8_t i = b[1];
+			  if (i >= 1 && i <= FFB_MAX_EFFECTS) {
+				effects[i].type     = b[2];
+				effects[i].duration = LE16(&b[3]);
+				effects[i].gain     = b[9];
+			  }
+			break;
+		  }
+
+
+	  	  case 0x12: /* Set Condition: 15 bytes */
+
+		  {   /* Set Condition */
+			  uint8_t i    = b[1];
+			  uint8_t axis = b[2] & 0x0F;          /* parameter block offset */
+			  if (i >= 1 && i <= FFB_MAX_EFFECTS && axis < 2) {
+				effects[i].cond[axis].cpOffset = (int16_t)LE16(&b[3]);
+				effects[i].cond[axis].posCoeff = (int16_t)LE16(&b[5]);
+				effects[i].cond[axis].negCoeff = (int16_t)LE16(&b[7]);
+				effects[i].cond[axis].posSat   = LE16(&b[9]);
+				effects[i].cond[axis].negSat   = LE16(&b[11]);
+				effects[i].cond[axis].deadBand = LE16(&b[13]);
+			  }
+			  break;
+		  }
+
+
+	  	  case 0x05: /* Set Constant Force */
+
+	  		if (b[1] >= 1 && b[1] <= FFB_MAX_EFFECTS)
+			  effects[b[1]].magnitude = (int16_t)(b[2] | (b[3] << 8));
+			break;
+
+
+	  	  case 0x0A: /* Effect Operation */
+
+	  		if (b[1] >= 1 && b[1] <= FFB_MAX_EFFECTS) {
+			  if (b[2] == 1 || b[2] == 2) effects[b[1]].playing = 1;   /* start / start solo */
+			  else if (b[2] == 3)         effects[b[1]].playing = 0;   /* stop */
+			}
+			break;
+
+	  	  default:
+			break;
+
+
+	  }
   }
+
+
   /* Start next USB packet transfer once data processing is completed */
   if (USBD_CUSTOM_HID_ReceivePacket(&hUsbDeviceFS) != (uint8_t)USBD_OK)
   {
@@ -876,6 +993,9 @@ static int8_t CUSTOM_HID_OutEvent_FS(uint8_t event_idx, uint8_t state)
 
 extern uint8_t g_get_report_id;
 extern uint8_t g_get_report_type;
+
+extern volatile uint8_t blockload_index;
+extern volatile uint8_t blockload_status;
 
 
 static uint8_t hid_report_buffer[64];
@@ -893,6 +1013,16 @@ static uint8_t *CUSTOM_HID_GetReport_FS(uint16_t *ReportLength)
 
 				*ReportLength = 5;
 				return hid_report_buffer;
+
+			case 0x14:   /* PID Block Load */
+			    *(hid_report_buffer) = 0x14;
+			    *(hid_report_buffer + 1) = blockload_index;
+			    *(hid_report_buffer + 2) = blockload_status;
+			    *(hid_report_buffer + 3) = 0xFF;   /* RAM pool available low */
+			    *(hid_report_buffer + 4) = 0xFF;   /* high */
+
+			    *ReportLength = 5;
+			    return hid_report_buffer;
 		}
 	}
 

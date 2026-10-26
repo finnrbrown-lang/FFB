@@ -71,17 +71,21 @@ int L_EN;
 int R_EN;
 int16_t offset;
 
-extern volatile uint8_t ffb_gain = 0xFF;
-extern volatile uint8_t ffb_actuators_enabled = 1;
-extern volatile uint8_t ffb_paused = 0;
+extern volatile uint8_t ffb_gain;
+extern volatile uint8_t ffb_actuators_enabled;
+extern volatile uint8_t ffb_paused;
 
 /* read by GetReport case 0x14 */
-extern volatile uint8_t blockload_index  = 0;
-extern volatile uint8_t blockload_status = 3;   /* 1 success, 2 full, 3 error */
+extern volatile uint8_t blockload_index;
+extern volatile uint8_t blockload_status;   /* 1 success, 2 full, 3 error */
+
+int32_t ffb_output = 0;
 
 
 
 extern volatile uint32_t datain_count;
+volatile uint32_t ffb_rx_count[256];
+volatile uint8_t  ffb_last_id, ffb_last_val;
 
 //volatile uint8_t actuators_enabled = 0;
 //volatile uint8_t effect_active     = 0;  /* set by 0x0A Op Effect Start, cleared by Stop */
@@ -244,8 +248,6 @@ int main(void)
 	{
 	    FFB_updated = 0U;
 	    uint8_t report_id = FFB_report[0];
-	    handler_count++;
-	    last_report_id = report_id;
 
 	    switch (report_id)
 	    {
@@ -254,20 +256,20 @@ int main(void)
 	        uint8_t cmd = FFB_report[1];
 	        if (cmd == 0x01U)       /* Enable Actuators */
 	        {
-	            actuators_enabled = 1U;
+	            ffb_actuators_enabled = 1U;
 	            HAL_GPIO_WritePin(GPIOA, GPIO_PIN_4|GPIO_PIN_5, GPIO_PIN_SET);
 	        }
 	        else if (cmd == 0x02U)  /* Disable Actuators */
 	        {
-	            actuators_enabled = 0U;
-	            effect_active = 0U;
+	            ffb_actuators_enabled = 0U;
+//	            effect_active = 0U;
 	            ffb_output = 0;
 	            HAL_GPIO_WritePin(GPIOA, GPIO_PIN_4|GPIO_PIN_5, GPIO_PIN_RESET);
 	        }
 	        else if (cmd == 0x04U)  /* Device Reset */
 	        {
-	            actuators_enabled = 0U;
-	            effect_active = 0U;
+	            ffb_actuators_enabled = 0U;
+//	            effect_active = 0U;
 	            ffb_output = 0;
 	            HAL_GPIO_WritePin(GPIOA, GPIO_PIN_4|GPIO_PIN_5, GPIO_PIN_RESET);
 	        }
@@ -281,11 +283,11 @@ int main(void)
 	        uint8_t op = FFB_report[2];
 	        if (op == 0x01U || op == 0x02U)  /* Op Effect Start / StartSolo */
 	        {
-	            effect_active = 1U;
+//	            effect_active = 1U;
 	        }
 	        else if (op == 0x03U)             /* Op Effect Stop */
 	        {
-	            effect_active = 0U;
+//	            effect_active = 0U;
 	            ffb_output = 0;
 	        }
 	        break;
@@ -312,17 +314,17 @@ int main(void)
 	 * Both actuators_enabled (from 0x0C) AND effect_active (from 0x0A)
 	 * must be set before the motor moves.
 	 * ----------------------------------------------------------------------- */
-	if (actuators_enabled && effect_active)
-	{
-	    int32_t duty = 32767 + (ffb_output * 32767 / 10000);
-	    if (duty > 65535) duty = 65535;
-	    if (duty < 0)     duty = 0;
-	    __HAL_TIM_SET_COMPARE(&htim1, TIM_CHANNEL_3, (uint32_t)duty);
-	}
-	else
-	{
-	    __HAL_TIM_SET_COMPARE(&htim1, TIM_CHANNEL_3, 32767U); /* neutral */
-	}
+//	if (ffb_actuators_enabled && effect_active)
+//	{
+//	    int32_t duty = 32767 + (ffb_output * 32767 / 10000);
+//	    if (duty > 65535) duty = 65535;
+//	    if (duty < 0)     duty = 0;
+//	    __HAL_TIM_SET_COMPARE(&htim1, TIM_CHANNEL_3, (uint32_t)duty);
+//	}
+//	else
+//	{
+//	    __HAL_TIM_SET_COMPARE(&htim1, TIM_CHANNEL_3, 32767U); /* neutral */
+//	}
 
     /* USER CODE END WHILE */
 
