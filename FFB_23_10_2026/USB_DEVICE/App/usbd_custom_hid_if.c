@@ -51,20 +51,7 @@ extern volatile uint8_t  ffb_last_id, ffb_last_val;
   */
 
 /* USER CODE BEGIN PRIVATE_TYPES */
-typedef struct {
-    uint8_t  allocated;
-    uint8_t  type;        /* 1=const 2=ramp 3=square 4=sine 5=tri 6=sawUp 7=sawDown 8=spring 9=damper 10=inertia 11=friction 12=custom */
-    uint8_t  playing;
-    uint8_t  gain;        /* 0..255, from Set Effect */
-    uint16_t duration;    /* ms, 0xFFFF = infinite, from Set Effect */
-    int16_t  magnitude;   /* constant force */
-    struct {
-        int16_t  cpOffset;
-        int16_t  posCoeff, negCoeff;
-        uint16_t posSat, negSat, deadBand;
-      } cond[2];
-    /* add duration, gain, direction, condition params as you parse them */
-} FfbEffect;
+
 /* USER CODE END PRIVATE_TYPES */
 
 /**
@@ -93,9 +80,11 @@ typedef struct {
 
 /* USER CODE BEGIN PRIVATE_MACRO */
 
-#define FFB_MAX_EFFECTS 40
+
 
 #define LE16(p) ((uint16_t)((p)[0] | ((p)[1] << 8)))
+#define LE32(p) ((uint32_t)LE16(p) | ((uint32_t)LE16((p)+2) << 16))
+#define VALID(i) ((i) >= 1 && (i) <= FFB_MAX_EFFECTS && effects[i].allocated)
 
 /* USER CODE END PRIVATE_MACRO */
 
@@ -770,7 +759,7 @@ __ALIGN_BEGIN static uint8_t CUSTOM_HID_ReportDesc_FS[USBD_CUSTOM_HID_REPORT_DES
 
 /* USER CODE BEGIN PRIVATE_VARIABLES */
 
-static FfbEffect effects[FFB_MAX_EFFECTS + 1];
+FfbEffect effects[FFB_MAX_EFFECTS + 1];
 
 volatile uint8_t ffb_gain = 0xFF;
 volatile uint8_t ffb_actuators_enabled = 1;
@@ -929,12 +918,14 @@ static int8_t CUSTOM_HID_OutEvent_FS(uint8_t event_idx, uint8_t state)
 
 	  	  case 0x10: /* Set Effect: 18 bytes */
 		  {   /* Set Effect */
-			  uint8_t i = b[1];
-			  if (i >= 1 && i <= FFB_MAX_EFFECTS) {
-				effects[i].type     = b[2];
-				effects[i].duration = LE16(&b[3]);
-				effects[i].gain     = b[9];
-			  }
+		    uint8_t i = b[1];
+			if (VALID(i)) {
+			      effects[i].type      = b[2];
+			      effects[i].duration  = LE16(&b[3]);
+			      effects[i].gain      = b[9];
+			      effects[i].dirEnable = (b[11] >> 2) & 1;
+			      effects[i].direction = b[12];
+			}
 			break;
 		  }
 
@@ -943,14 +934,14 @@ static int8_t CUSTOM_HID_OutEvent_FS(uint8_t event_idx, uint8_t state)
 
 		  {   /* Set Condition */
 			  uint8_t i    = b[1];
-			  uint8_t axis = b[2] & 0x0F;          /* parameter block offset */
-			  if (i >= 1 && i <= FFB_MAX_EFFECTS && axis < 2) {
-				effects[i].cond[axis].cpOffset = (int16_t)LE16(&b[3]);
-				effects[i].cond[axis].posCoeff = (int16_t)LE16(&b[5]);
-				effects[i].cond[axis].negCoeff = (int16_t)LE16(&b[7]);
-				effects[i].cond[axis].posSat   = LE16(&b[9]);
-				effects[i].cond[axis].negSat   = LE16(&b[11]);
-				effects[i].cond[axis].deadBand = LE16(&b[13]);
+			  uint8_t ax = b[2] & 0x0F;          /* parameter block offset */
+			  if (VALID(i) && ax < 2) {
+			      effects[i].cond[ax].cpOffset = (int16_t)LE16(&b[3]);
+			      effects[i].cond[ax].posCoeff = (int16_t)LE16(&b[5]);
+			      effects[i].cond[ax].negCoeff = (int16_t)LE16(&b[7]);
+			      effects[i].cond[ax].posSat   = LE16(&b[9]);
+			      effects[i].cond[ax].negSat   = LE16(&b[11]);
+			      effects[i].cond[ax].deadBand = LE16(&b[13]);
 			  }
 			  break;
 		  }
@@ -958,21 +949,40 @@ static int8_t CUSTOM_HID_OutEvent_FS(uint8_t event_idx, uint8_t state)
 
 	  	  case 0x05: /* Set Constant Force */
 
-	  		if (b[1] >= 1 && b[1] <= FFB_MAX_EFFECTS)
-			  effects[b[1]].magnitude = (int16_t)(b[2] | (b[3] << 8));
-			break;
+	  		if (VALID(b[1])) effects[b[1]].magnitude = (int16_t)LE16(&b[2]);
+	  		break;
 
 
-	  	  case 0x0A: /* Effect Operation */
+	  	case 0x04: {   /* Set Periodic */
+	  	  if (VALID(b[1])) {
+	  	    effects[b[1]].magnitude = (int16_t)LE16(&b[2]);
+	  	    effects[b[1]].offset    = (int16_t)LE16(&b[4]);
+	  	    effects[b[1]].phase     = LE16(&b[6]);
+	  	    effects[b[1]].period    = LE32(&b[8]);
+	  	  }
+	  	  break;
+	  	}
 
-	  		if (b[1] >= 1 && b[1] <= FFB_MAX_EFFECTS) {
-			  if (b[2] == 1 || b[2] == 2) effects[b[1]].playing = 1;   /* start / start solo */
-			  else if (b[2] == 3)         effects[b[1]].playing = 0;   /* stop */
-			}
-			break;
 
-	  	  default:
-			break;
+	  	case 0x06: {   /* Set Ramp Force */
+	  	  if (VALID(b[1])) {
+	  	    effects[b[1]].rampStart = (int16_t)LE16(&b[2]);
+	  	    effects[b[1]].rampEnd   = (int16_t)LE16(&b[4]);
+	  	  }
+	  	  break;
+	  	}
+
+
+	  	case 0x0A: {   /* Effect Operation: b[2] = 1 start, 2 start solo, 3 stop */
+	  	  if (VALID(b[1])) {
+	  	    if (b[2] == 1 || b[2] == 2) {
+	  	      if (b[2] == 2) for (int k = 1; k <= FFB_MAX_EFFECTS; k++) effects[k].playing = 0;
+	  	      effects[b[1]].startTick = HAL_GetTick();
+	  	      effects[b[1]].playing = 1;
+	  	    } else if (b[2] == 3) effects[b[1]].playing = 0;
+	  	  }
+	  	  break;
+	  	}
 
 
 	  }

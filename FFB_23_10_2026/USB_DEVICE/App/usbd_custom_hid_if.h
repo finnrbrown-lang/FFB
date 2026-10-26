@@ -49,7 +49,7 @@
   */
 
 /* USER CODE BEGIN EXPORTED_DEFINES */
-
+#define FFB_MAX_EFFECTS 40
 /* USER CODE END EXPORTED_DEFINES */
 
 /**
@@ -62,7 +62,21 @@
   */
 
 /* USER CODE BEGIN EXPORTED_TYPES */
-
+ typedef struct {
+ 	uint8_t  allocated, type, playing, gain;
+ 	uint8_t  dirEnable, direction;   /* direction 0..255 = 0..360 deg */
+ 	uint16_t duration;               /* ms, 0 or >=0x7FFF = infinite */
+ 	uint32_t startTick;
+ 	int16_t  magnitude;              /* constant force or periodic magnitude */
+ 	int16_t  offset;                 /* periodic offset */
+ 	uint16_t phase;                  /* periodic phase, 0..35999 */
+ 	uint32_t period;                 /* periodic period, ms */
+ 	int16_t  rampStart, rampEnd;
+ 	struct {
+ 		int16_t  cpOffset, posCoeff, negCoeff;
+ 		uint16_t posSat, negSat, deadBand;
+ 	} cond[2];
+ } FfbEffect;
 /* USER CODE END EXPORTED_TYPES */
 
 /**
@@ -91,7 +105,7 @@
 extern USBD_CUSTOM_HID_ItfTypeDef USBD_CustomHID_fops_FS;
 
 /* USER CODE BEGIN EXPORTED_VARIABLES */
-
+extern FfbEffect effects[FFB_MAX_EFFECTS + 1];
 /* USER CODE END EXPORTED_VARIABLES */
 
 /**

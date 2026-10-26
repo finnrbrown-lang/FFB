@@ -109,6 +109,10 @@ extern volatile uint32_t datain_count;
 
 extern uint8_t g_get_report_id;
 
+#define STEER_CENTER   2400      /* adjust: counts at centre */
+#define STEER_HALF     2400      /* counts from centre to each stop */
+#define FFB_LIMIT_PCT  15        /* start low */
+#define VEL_GAIN       4.0f      /* tune for damper/friction feel */
 /* USER CODE END Private defines */
 
 #ifdef __cplusplus
